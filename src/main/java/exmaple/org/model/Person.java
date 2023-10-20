@@ -19,7 +19,8 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class Person implements Serializable {
-    String firstName;
     String lastName;
+    String firstName;
     String cardNumber;
+    Address address;
 }

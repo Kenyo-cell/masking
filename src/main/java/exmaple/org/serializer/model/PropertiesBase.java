@@ -32,4 +32,8 @@ public abstract class PropertiesBase {
     public final void addProperty(String key, Object value) {
         properties.put(key, value);
     }
+
+    public final Map<String, Object> asMap() {
+        return properties;
+    }
 }

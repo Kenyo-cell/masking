@@ -24,8 +24,8 @@ public class IntermediateSymbolSerializer extends JsonSerializer<SerializationEn
             jsonGenerator.writeFieldName(object.getFieldName());
             jsonGenerator.writeString(this.mask(
                 String.valueOf(object.getValue()),
-                object.mappedProperty("1", SerializationEntity.CAST_INT),
-                object.mappedProperty("2", SerializationEntity.CAST_INT)
+                object.mappedProperty("f", SerializationEntity.CAST_INT),
+                object.mappedProperty("s", SerializationEntity.CAST_INT)
             ));
         }
     }
@@ -34,7 +34,7 @@ public class IntermediateSymbolSerializer extends JsonSerializer<SerializationEn
         if (before > origin.length() || against > origin.length()) {
             return origin.substring(origin.length() - 1) + "*";
         }
-        return origin.substring(0, before) + "*" + origin.substring(against, origin.length());
+        return origin.substring(0, before) + "*" + origin.substring(origin.length() - against);
     }
     
 }

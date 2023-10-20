@@ -2,6 +2,7 @@ package exmaple.org.serializer;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -9,33 +10,71 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.BeanProperty;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 
 import exmaple.org.serializer.model.RuleMap;
-import lombok.SneakyThrows;
+import exmaple.org.serializer.model.SerializationEntity;
 
-@Component
-public class MaskSerializer extends JsonSerializer<Serializable> {
-    @Autowired
-    private RuleMap ruleMap;
+public class MaskSerializer extends StdSerializer<Object> {
+    private final RuleMap ruleMap;
+    private final JsonSerializer<Object> defSerilizer;
+
+    public MaskSerializer(RuleMap ruleMap, JsonSerializer<Object> defaultSerializer) {
+        super(Object.class);
+        this.ruleMap = ruleMap;
+        defSerilizer = defaultSerializer;
+    }
+
 
     @Override
-    @SneakyThrows
-    public void serialize(Serializable object, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
+    public void serialize(Object object, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
         if (ruleMap.hasRule(object.getClass())) {
+            jsonGenerator.writeStartObject();
             Stream.of(object.getClass().getDeclaredFields())
                 .forEach(field -> {
-                    Object o = field.get(object);
-                    Optional.ofNullable(ruleMap.getRule(object.getClass()).get(field.getName()))
+                    try {
+                        field.setAccessible(true);
+                        Object o = field.get(object);
+                        Optional.ofNullable(ruleMap.getRule(object.getClass()).get(field.getName()))
                         .ifPresentOrElse(
-                            serializer -> serializer.getConstructor().serialize(o, jsonGenerator, serializerProvider),
+                            properties -> {
+                                try {
+                                    properties.getSerializerClass().getConstructor().newInstance()
+                                        .serialize(new SerializationEntity(field.getName(), o, properties.asMap()), jsonGenerator, serializerProvider);
+                                } catch (InstantiationException | IllegalAccessException | IllegalArgumentException
+                                        | InvocationTargetException | NoSuchMethodException | SecurityException
+                                        | IOException e) {
+                                    // TODO Auto-generated catch block
+                                    e.printStackTrace();
+                                }
+                            },
                             () -> {
-                                serializerProvider.findKeySerializer(field.getType(), null).serialize(o, jsonGenerator, serializerProvider);
-                                serializerProvider.findValueSerializer(o, null).serialize(o, jsonGenerator, serializerProvider);
+                                try {
+                                    jsonGenerator.writeFieldName(field.getName());
+                                    JsonSerializer<Object> typedSerializer = serializerProvider.findTypedValueSerializer(field.getType(), true, null);
+                                    
+                                    if (typedSerializer == null) {
+                                        // serializerProvider.findValueSerializer(field.getType(), null).serialize(o, jsonGenerator, serializerProvider);
+                                        defSerilizer.serialize(object, jsonGenerator, serializerProvider);
+                                    } else {
+                                        typedSerializer.serialize(o, jsonGenerator, serializerProvider);
+                                    }
+                                } catch (IOException e) {
+                                    // TODO Auto-generated catch block
+                                    e.printStackTrace();
+                                }
                             });
+                    } catch (IllegalArgumentException | IllegalAccessException e) {
+                        e.printStackTrace();
+                    }
+                    
                 });
+                jsonGenerator.writeEndObject();
+        } else {
+            defSerilizer.serialize(object, jsonGenerator, serializerProvider);
         }
     }
     
